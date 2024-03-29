@@ -49,6 +49,7 @@ basic_dqlite_sources = \
   src/logger.c \
   src/message.c \
   src/metrics.c \
+  src/metric_helper.c \
   src/config.c \
   src/query.c \
   src/registry.c \
