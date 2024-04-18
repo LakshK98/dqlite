@@ -15,6 +15,8 @@
 #include "log.h"
 #include "membership.h"
 
+#include "../metric_helper.h"
+
 #define DEFAULT_ELECTION_TIMEOUT 1000          /* One second */
 #define DEFAULT_HEARTBEAT_TIMEOUT 100          /* One tenth of a second */
 #define DEFAULT_INSTALL_SNAPSHOT_TIMEOUT 30000 /* 30 seconds */
@@ -48,6 +50,10 @@ int raft_init(struct raft *r,
 	if (rv != 0) {
 		goto err;
 	}
+
+	struct metric_store* ms = RaftHeapMalloc(sizeof (struct metric_store));
+	init_metric_store(ms);
+	r->leader_state.reserved[0] = (uint64_t) ms;
 
 	r->io = io;
 	r->io->data = r;
@@ -135,6 +141,9 @@ void raft_close(struct raft *r, void (*cb)(struct raft *r))
 	}
 	r->close_cb = cb;
 	r->io->close(r->io, ioCloseCb);
+
+	struct metric_store *ms = (struct metric_store *) r->leader_state.reserved[0];
+	RaftHeapFree(ms);
 }
 
 void raft_register_state_cb(struct raft *r, raft_state_cb cb)

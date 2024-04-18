@@ -11,6 +11,9 @@
 #include "tuple.h"
 #include "vfs.h"
 
+#include "metric_helper.h"
+
+
 void gateway__init(struct gateway *g,
 		   struct config *config,
 		   struct registry *registry,
@@ -676,6 +679,11 @@ static void handle_exec_sql_cb(struct exec *exec, int status)
 
 	req->exec_count += 1;
 	sqlite3_finalize(exec->stmt);
+
+	struct metric_store *ms = (struct metric_store *) g->raft->leader_state.reserved[0];
+
+	record_end_time_new(&ms->exec_metric, exec->id, "exec_duration");
+
 
 	if (status == SQLITE_DONE) {
 		handle_exec_sql_next(g, req, true);

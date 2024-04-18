@@ -11,6 +11,8 @@
 #include "replication.h"
 #include "request.h"
 
+#include "../metric_helper.h"
+
 int raft_apply(struct raft *r,
 	       struct raft_apply *req,
 	       const struct raft_buffer bufs[],
@@ -40,13 +42,22 @@ int raft_apply(struct raft *r,
 	req->index = index;
 	req->cb = cb;
 
+	tracef(LOG_METRIC "raft_apply index %llu \n",index );
+	struct metric_store *ms = (struct metric_store *) r->leader_state.reserved[0];
+	ms->log_idx = index;
+	record_start_time(&ms->apply_commit_duration);
+
+
 	/* Append the new entries to the log. */
 	rv = logAppendCommands(r->log, r->current_term, bufs, n);
+
 	if (rv != 0) {
 		goto err;
 	}
 
 	lifecycleRequestStart(r, (struct request *)req);
+
+	tracef(LOG_METRIC "Replication trigger called\n");
 
 	rv = replicationTrigger(r, index);
 	if (rv != 0) {

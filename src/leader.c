@@ -10,6 +10,8 @@
 #include "tracing.h"
 #include "vfs.h"
 
+#include "metric_helper.h"
+
 /* Called when a leader exec request terminates and the associated callback can
  * be invoked. */
 static void leaderExecDone(struct exec *req)
@@ -283,6 +285,8 @@ static void leaderApplyFramesCb(struct raft_apply *req,
 	}
 
 finish:
+	tracef(LOG_METRIC "finish: apply frames cb id:%" PRIu64, idExtract(req->req_id));
+
 	l->inflight = NULL;
 	l->db->tx_id = 0;
 	leaderExecDone(l->exec);
@@ -349,6 +353,13 @@ err:
 static void leaderExecV2(struct exec *req)
 {
 	tracef("leader exec v2 id:%" PRIu64, req->id);
+
+	struct metric_store *ms = (struct metric_store *) req->leader->raft->leader_state.reserved[0];
+	record_start_time_new(&ms->file_write_metric, req->id, "recording db add start time ");
+
+	record_start_time_new(&ms->exec_metric, req->id, "recording exec start time ");
+
+
 	struct leader *l = req->leader;
 	struct db *db = l->db;
 	sqlite3_vfs *vfs = sqlite3_vfs_find(db->config->name);
@@ -372,6 +383,8 @@ static void leaderExecV2(struct exec *req)
 		rv = SQLITE_FULL;
 		goto abort;
 	}
+
+	record_end_time_new(&ms->file_write_metric,  req->id, "db_add_duration");
 
 	rv = leaderApplyFrames(req, frames, n);
 	if (rv != 0) {

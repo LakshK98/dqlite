@@ -5,6 +5,8 @@
 #include "heap.h"
 #include "uv.h"
 #include "uv_os.h"
+#include "../metric_helper.h"
+
 
 /* The happy path for UvPrepare is:
  *
@@ -43,6 +45,8 @@ struct uvIdleSegment
 	char filename[UV__FILENAME_LEN];   /* Filename of the segment */
 	uv_file fd;  /* File descriptor of prepared file */
 	queue queue; /* Pool */
+	struct metric_aggregate file_create_metric;
+
 };
 
 static void uvPrepareWorkCb(uv_work_t *work)
@@ -107,6 +111,8 @@ static void uvPrepareConsume(struct uv *uv, uv_file *fd, uvCounter *counter)
  * segment. */
 static void uvPrepareFinishOldestRequest(struct uv *uv)
 {
+	tracef(LOG_METRIC "consuming old request \n");
+
 	queue *head;
 	struct uvPrepare *req;
 
@@ -145,6 +151,7 @@ static int uvPrepareStart(struct uv *uv)
 	struct uvIdleSegment *segment;
 	int rv;
 
+
 	assert(uv->prepare_inflight == NULL);
 	assert(uvPrepareCount(uv) < UV__TARGET_POOL_SIZE);
 
@@ -162,7 +169,13 @@ static int uvPrepareStart(struct uv *uv)
 	segment->size = uv->block_size * uvSegmentBlocks(uv);
 	sprintf(segment->filename, UV__OPEN_TEMPLATE, segment->counter);
 
+	queue_init(&segment->file_create_metric.head);
+
+
 	tracef("create open segment %s", segment->filename);
+
+	record_start_time_new(&segment->file_create_metric, segment->counter, "recording file create start time");
+
 	rv = uv_queue_work(uv->loop, &segment->work, uvPrepareWorkCb,
 			   uvPrepareAfterWorkCb);
 	if (rv != 0) {
@@ -192,6 +205,9 @@ static void uvPrepareAfterWorkCb(uv_work_t *work, int status)
 	struct uv *uv = segment->uv;
 	int rv;
 	assert(status == 0);
+
+	record_end_time_new(&segment->file_create_metric,  segment->counter, "file_create_duration");
+
 
 	uv->prepare_inflight =
 	    NULL; /* Reset the creation in-progress marker. */
@@ -320,6 +336,8 @@ err:
 void UvPrepareClose(struct uv *uv)
 {
 	assert(uv->closing);
+
+	tracef(LOG_METRIC " prepare close called \n");
 
 	/* Cancel all pending prepare requests. */
 	uvPrepareFinishAllRequests(uv, RAFT_CANCELED);

@@ -824,9 +824,10 @@ static int dqliteDatabaseDirSetup(dqlite_node *t)
 int dqlite_node_start(dqlite_node *t)
 {
 	int rv;
-	tracef("dqlite node start");
 
 	dqliteTracingMaybeEnable(true);
+
+	tracef("dqlite node start");
 
 	rv = dqliteDatabaseDirSetup(t);
 	if (rv != 0) {

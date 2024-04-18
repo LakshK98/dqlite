@@ -5,6 +5,8 @@
 #include "uv.h"
 #include "uv_encoding.h"
 #include "uv_writer.h"
+#include "../metric_helper.h"
+
 
 /* The happy path for an append request is:
  *
@@ -626,9 +628,12 @@ static int uvAppendEnqueueRequest(struct uv *uv, struct uvAppend *append)
 	segment = uvGetLastAliveSegment(uv);
 	if (segment == NULL || segment->finalize) {
 		fits = false;
+		tracef(LOG_METRIC "segment->finalize is true\n");
+
 	} else {
 		fits = uvAliveSegmentHasEnoughSpareCapacity(segment, size);
 		if (!fits) {
+			tracef(LOG_METRIC "new request does not fit in alive segment \n");
 			segment->finalize =
 			    true; /* Finalize when all writes are done */
 		}

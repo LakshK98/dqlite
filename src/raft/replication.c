@@ -20,6 +20,10 @@
 #include "request.h"
 #include "snapshot.h"
 
+#include "../metric_helper.h"
+
+
+
 #ifndef max
 #define max(a, b) ((a) < (b) ? (b) : (a))
 #endif
@@ -101,6 +105,35 @@ static int sendAppendEntries(struct raft *r,
 	    "send %u entries starting at %llu to server %llu (last index %llu)",
 	    args->n_entries, args->prev_log_index, server->id,
 	    logLastIndex(r->log));
+
+
+	tracef(LOG_METRIC "sendAppendEntries");
+	// struct metric_store *ms = (struct metric_store *) r->leader_state.reserved[0];
+
+	// we are only trying to track duration of entries that actually append an entry to log
+	// if(args->n_entries > 0)
+	// {
+	// 	struct metric_aggregate *aggr = get_aggregate_node(&ms->append_entry_q, (uint64_t) server->id );
+	// 	record_start_time_new(aggr, (uint64_t)logLastIndex(r->log), "recording send append start time ");
+
+	// }
+
+	// for(itr = 0; itr<NUM_NODES; itr++)
+	// {
+	// 	if(ms->nodes[itr].node_id == 0)
+	// 	{
+	// 		ms->nodes[itr].node_id = (uint64_t) server->id;
+	// 	}
+
+	// 	uint64_t cur_last_idx = (uint64_t)logLastIndex(r->log);
+
+	// 	if(ms->nodes[itr].node_id  == (uint64_t) server->id )
+	// 	{
+	// 		ms->nodes[itr].log_idx = cur_last_idx;
+	// 		record_start_time(&ms->nodes[itr].replication_duration);
+	// 		break;
+	// 	}
+	// }
 
 	message.type = RAFT_IO_APPEND_ENTRIES;
 	message.server_id = server->id;
@@ -488,6 +521,11 @@ static void appendLeaderCb(struct raft_io_append *append, int status)
 	tracef("leader: written %u entries starting at %lld: status %d",
 	       request->n, request->index, status);
 
+	struct metric_store *ms = (struct metric_store *) r->leader_state.reserved[0];
+
+	record_end_time_new(&ms->file_write_metric,  request->index, "write_duration");
+
+
 	/* In case of a failed disk write, if we were the leader creating these
 	 * entries in the first place, truncate our log too (since we have
 	 * appended these entries to it) and fire the request callbacks.
@@ -562,6 +600,8 @@ static void appendLeaderCb(struct raft_io_append *append, int status)
 	if (server_index < r->configuration.n) {
 		r->leader_state.progress[server_index].match_index =
 		    r->last_stored;
+
+		tracef(LOG_METRIC "match_index = last_stored = %llu", r->leader_state.progress[server_index].match_index );
 	}
 
 	/* Check if we can commit some new entries. */
@@ -594,6 +634,13 @@ static int appendLeader(struct raft *r, raft_index index)
 	unsigned n;
 	struct appendLeader *request;
 	int rv;
+
+	tracef(LOG_METRIC "append leader for index  %llu \n", index);
+	struct metric_store *ms = (struct metric_store *) r->leader_state.reserved[0];
+	
+	record_start_time_new(&ms->file_write_metric, index, "recording write_start time ");
+	
+
 
 	assert(r->state == RAFT_LEADER);
 	assert(index > 0);
@@ -1473,7 +1520,24 @@ static int applyCommand(struct raft *r,
 	struct raft_apply *req;
 	void *result;
 	int rv;
+
+	struct metric_store *ms = (struct metric_store *) r->leader_state.reserved[0];
 	rv = r->fsm->apply(r->fsm, buf, &result);
+
+
+	tracef(LOG_METRIC "applyCommand");
+
+	if(ms->log_idx != (uint64_t)index)
+	{
+		tracef(LOG_METRIC "applyCommand index does not match %llu", index);
+	}
+	else
+	{
+
+		record_end_time(&ms->apply_commit_duration);
+		tracef(LOG_METRIC "apply_commit_duration avg time : %lu duration : %lu counter: %lu index %llu\n", ms->apply_commit_duration.avg, ms->apply_commit_duration.duration, ms->apply_commit_duration.counter, index);
+	}
+
 	if (rv != 0) {
 		return rv;
 	}
@@ -1823,7 +1887,8 @@ void replicationQuorum(struct raft *r, const raft_index index)
 
 	if (votes > configurationVoterCount(&r->configuration) / 2) {
 		r->commit_index = index;
-		tracef("new commit index %llu", r->commit_index);
+		tracef("new commit index %llu ", r->commit_index);
+		tracef(LOG_METRIC " votes %zu \n", votes);
 	}
 
 	return;
