@@ -21,27 +21,7 @@ int recvAppendEntriesResult(struct raft *r,
 
 	struct metric_store *ms = (struct metric_store *) r->leader_state.reserved[0];
 	struct metric_aggregate *aggr = get_aggregate_node(&ms->append_entry_q, (uint64_t) id);
-	record_end_time_new(aggr,  (uint64_t)result->last_log_index, "replication_duration");
-
-
-	// for(i = 0; i<NUM_NODES; i++)
-	// {
-	// 	if(ms->nodes[i].node_id  == (uint64_t) id)
-	// 	{
-
-	// 		if(ms->nodes[i].log_idx != (uint64_t)result->last_log_index ||  ms->nodes[i].prev_log_idx == (uint64_t)result->last_log_index)
-	// 		{
-	// 			tracef(LOG_METRIC "recvAppendEntriesResult index does not match %lu \n", ms->nodes[i].log_idx);
-	// 		}
-	// 		else
-	// 		{	
-	// 			ms->nodes[i].prev_log_idx = ms->nodes[i].log_idx;
-	// 			record_end_time(&ms->nodes[i].replication_duration);
-	// 			tracef(LOG_METRIC "replication_duration avg time : %lu duration : %lu  counter: %lu id: %lu\n", ms->nodes[i].replication_duration.avg, ms->nodes[i].replication_duration.duration, ms->nodes[i].replication_duration.counter, ms->nodes[i].node_id );
-	// 		}
-	// 		break;
-	// 	}
-	// }
+	record_end_time(aggr,  (uint64_t)result->last_log_index, "replication_duration");
 
 	assert(r != NULL);
 	assert(id > 0);

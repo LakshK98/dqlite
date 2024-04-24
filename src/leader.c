@@ -355,9 +355,9 @@ static void leaderExecV2(struct exec *req)
 	tracef("leader exec v2 id:%" PRIu64, req->id);
 
 	struct metric_store *ms = (struct metric_store *) req->leader->raft->leader_state.reserved[0];
-	record_start_time_new(&ms->file_write_metric, req->id, "recording db add start time ");
+	record_start_time(&ms->file_write_metric, req->id, "recording db add start time ");
 
-	record_start_time_new(&ms->exec_metric, req->id, "recording exec start time ");
+	record_start_time(&ms->exec_metric, req->id, "recording exec start time ");
 
 
 	struct leader *l = req->leader;
@@ -384,7 +384,7 @@ static void leaderExecV2(struct exec *req)
 		goto abort;
 	}
 
-	record_end_time_new(&ms->file_write_metric,  req->id, "db_add_duration");
+	record_end_time(&ms->file_write_metric,  req->id, "db_add_duration");
 
 	rv = leaderApplyFrames(req, frames, n);
 	if (rv != 0) {

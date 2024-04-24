@@ -682,7 +682,7 @@ static void handle_exec_sql_cb(struct exec *exec, int status)
 
 	struct metric_store *ms = (struct metric_store *) g->raft->leader_state.reserved[0];
 
-	record_end_time_new(&ms->exec_metric, exec->id, "exec_duration");
+	record_end_time(&ms->exec_metric, exec->id, "exec_duration");
 
 
 	if (status == SQLITE_DONE) {

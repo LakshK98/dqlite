@@ -10,6 +10,8 @@
 #include "err.h"
 #include "heap.h"
 #include "uv_os.h"
+#include "../metric_helper.h"
+
 
 int UvFsCheckDir(const char *dir, char *errmsg)
 {
@@ -202,6 +204,11 @@ int UvFsAllocateFile(const char *dir,
 
 	/* Allocate the desired size. */
 	if (fallocate) {
+
+		struct metric_aggregate allocate_file_metric;
+		init_aggr_node(&allocate_file_metric);
+		record_start_time(&allocate_file_metric, 1, "recording internal file open time");
+
 		/* TODO: use RWF_DSYNC instead, if available. */
 		flags |= O_DSYNC;
 		rv = uvFsOpenFile(dir, filename, flags, S_IRUSR | S_IWUSR, fd,
@@ -209,8 +216,15 @@ int UvFsAllocateFile(const char *dir,
 		if (rv != 0) {
 			goto err;
 		}
+		record_end_time(&allocate_file_metric, 1, "internal_open_duration");
+
+		record_start_time(&allocate_file_metric, 1, "recording internal file allocate time");
+
 		rv = UvOsFallocate(*fd, 0, (off_t)size);
+
+
 		if (rv == 0) {
+				record_end_time(&allocate_file_metric, 1, "internal_allocate_duration");
 			return 0;
 		} else if (rv == UV_ENOSPC) {
 			ErrMsgPrintf(errmsg,

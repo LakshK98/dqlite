@@ -27,6 +27,7 @@ struct metric_node
 
 struct metric_aggregate
 {
+    //head of queue of metric_node_new
     queue head;
     uint64_t id;
     uint64_t sum;
@@ -46,8 +47,6 @@ struct metric_node_new
 
 struct metric_store{
     uint64_t log_idx;
-    struct timing_metric apply_commit_duration, append_duration, commit_duration;
-    struct metric_node nodes [NUM_NODES];
     uint64_t write_sum;
     uint64_t write_avg;
     uint64_t counter;
@@ -58,12 +57,13 @@ struct metric_store{
     struct metric_aggregate exec_metric;
 };
 
+void init_aggr_node(struct metric_aggregate *ma);
+void free_aggr_node(struct metric_aggregate *ma);
 uint64_t  get_cur_time(void);
 void init_metric_store(struct metric_store *ms);
-void record_start_time(struct timing_metric *tm);
-void record_end_time(struct timing_metric *tm);
 void record_write(struct metric_store *ms, uint64_t dur);
-void record_start_time_new(struct metric_aggregate *ma, uint64_t id, const char *msg);
-void record_end_time_new(struct metric_aggregate *ma, uint64_t id, const char *msg);
+void record_start_time(struct metric_aggregate *ma, uint64_t id, const char *msg);
+void record_end_time(struct metric_aggregate *ma, uint64_t id, const char *msg);
 struct metric_aggregate * get_aggregate_node(queue *head,  uint64_t id);
+struct metric_aggregate * new_aggr_node(void);
 #endif

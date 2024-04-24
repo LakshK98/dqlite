@@ -17,26 +17,32 @@ uint64_t  get_cur_time(void)
 void init_metric_store(struct metric_store *ms)
 {
     ms->log_idx = 0;
-    ms->apply_commit_duration = (struct timing_metric) {0};
-    ms->append_duration = (struct timing_metric) {0};
-    ms->commit_duration = (struct timing_metric) {0};
 
-
-    queue_init(&ms->file_write_metric.head);
-
-    queue_init(&ms->db_add_metric.head);
-
-    queue_init(&ms->exec_metric.head);
+    init_aggr_node(&ms->file_write_metric);
+    init_aggr_node(&ms->db_add_metric);
+    init_aggr_node(&ms->exec_metric);
 
     queue_init(&ms->append_entry_q);
-
-    unsigned i;
-    for(i=0; i<NUM_NODES; i++)
-    {
-        ms->nodes[i] = (struct metric_node) {0};
-    }
 }
 
+void init_aggr_node(struct metric_aggregate *ma)
+{
+    *ma = (struct metric_aggregate) {0};
+    queue_init(&ma->head);
+}
+
+struct metric_aggregate* new_aggr_node(void)
+{
+    struct metric_aggregate *ma = RaftHeapMalloc(sizeof (struct metric_aggregate));
+    *ma = (struct metric_aggregate) {0};
+    queue_init(&ma->head);
+    return ma;
+}
+
+void free_aggr_node(struct metric_aggregate *ma)
+{
+    RaftHeapFree(ma);
+}
 
 void record_write(struct metric_store *ms, uint64_t dur)
 {
@@ -50,25 +56,6 @@ void record_write(struct metric_store *ms, uint64_t dur)
 
 }
 
-void record_start_time(struct timing_metric *tm)
-{
-    tm->start_time = get_cur_time();
-}
-
-void record_end_time(struct timing_metric *tm)
-{
-    tm->counter++;
-    uint64_t cur_time = get_cur_time();
-
-    tm->duration = cur_time - tm->start_time;
-
-
-    if(tm->counter < 5)
-        return;
-    tm->sum += tm->duration;
-    tm->avg = tm->sum /tm->counter;
-}
-
 void set_start_time(struct metric_node_new *mnn)
 {
     mnn->start_time = get_cur_time();
@@ -80,7 +67,7 @@ void set_duration(struct metric_node_new *mnn)
     mnn->duration = cur_time - mnn->start_time;
 }
 
-void record_start_time_new(struct metric_aggregate *ma, uint64_t id, const char* msg)
+void record_start_time(struct metric_aggregate *ma, uint64_t id, const char* msg)
 {
     // if((int64_t)id >= 0)
     //     return;
@@ -114,7 +101,7 @@ void record_start_time_new(struct metric_aggregate *ma, uint64_t id, const char*
 }
 
 
-void record_end_time_new(struct metric_aggregate *ma, uint64_t id, const char *msg)
+void record_end_time(struct metric_aggregate *ma, uint64_t id, const char *msg)
 {
     // if((int64_t)id >= 0)
     //     return;

@@ -54,17 +54,30 @@ static void uvPrepareWorkCb(uv_work_t *work)
 	struct uvIdleSegment *segment = work->data;
 	struct uv *uv = segment->uv;
 	int rv;
+	struct metric_aggregate prepare_work_metric;
+	init_aggr_node(&prepare_work_metric);
 
+	record_start_time(&prepare_work_metric, 1, "recording file allocation time");
+	tracef(LOG_METRIC "fallocate bool %d", uv->fallocate);
 	rv = UvFsAllocateFile(uv->dir, segment->filename, segment->size,
 			      &segment->fd, uv->fallocate, segment->errmsg);
 	if (rv != 0) {
 		goto err;
 	}
 
+	record_end_time(&prepare_work_metric, 1, "file_allocation_duration");
+
+
+	record_start_time(&prepare_work_metric, 1, "recording file sync time");
+
+
 	rv = UvFsSyncDir(uv->dir, segment->errmsg);
 	if (rv != 0) {
 		goto err_after_allocate;
 	}
+
+	record_end_time(&prepare_work_metric, 1, "file_sync_duration");
+
 
 	segment->status = 0;
 	return;
@@ -169,12 +182,11 @@ static int uvPrepareStart(struct uv *uv)
 	segment->size = uv->block_size * uvSegmentBlocks(uv);
 	sprintf(segment->filename, UV__OPEN_TEMPLATE, segment->counter);
 
-	queue_init(&segment->file_create_metric.head);
-
+	init_aggr_node(&segment->file_create_metric);
 
 	tracef("create open segment %s", segment->filename);
 
-	record_start_time_new(&segment->file_create_metric, segment->counter, "recording file create start time");
+	record_start_time(&segment->file_create_metric, segment->counter, "recording file create start time");
 
 	rv = uv_queue_work(uv->loop, &segment->work, uvPrepareWorkCb,
 			   uvPrepareAfterWorkCb);
@@ -206,7 +218,7 @@ static void uvPrepareAfterWorkCb(uv_work_t *work, int status)
 	int rv;
 	assert(status == 0);
 
-	record_end_time_new(&segment->file_create_metric,  segment->counter, "file_create_duration");
+	record_end_time(&segment->file_create_metric,  segment->counter, "file_create_duration");
 
 
 	uv->prepare_inflight =

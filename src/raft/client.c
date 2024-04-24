@@ -45,8 +45,6 @@ int raft_apply(struct raft *r,
 	tracef(LOG_METRIC "raft_apply index %llu \n",index );
 	struct metric_store *ms = (struct metric_store *) r->leader_state.reserved[0];
 	ms->log_idx = index;
-	record_start_time(&ms->apply_commit_duration);
-
 
 	/* Append the new entries to the log. */
 	rv = logAppendCommands(r->log, r->current_term, bufs, n);
