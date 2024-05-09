@@ -208,10 +208,23 @@ int UvFsAllocateFile(const char *dir,
 		struct metric_aggregate allocate_file_metric;
 		init_aggr_node(&allocate_file_metric);
 		record_start_time(&allocate_file_metric, 1, "recording internal file open time");
-
-		/* TODO: use RWF_DSYNC instead, if available. */
-		flags |= O_DSYNC;
 		rv = uvFsOpenFile(dir, filename, flags, S_IRUSR | S_IWUSR, fd,
+				  errmsg);
+		
+		if (rv != 0) {
+			goto err;
+		}
+		rv = UvOsFallocate(*fd, 0, (off_t)size);
+
+		rv = UvOsClose(*fd);
+		if (rv != 0) {
+			ErrMsgPrintf(errmsg, "close %d", rv);
+			goto err_unlink;
+		}
+		/* TODO: use RWF_DSYNC instead, if available. */
+		int flags2 = O_WRONLY | O_CREAT;
+		flags2 |= O_DSYNC;
+		rv = uvFsOpenFile(dir, filename, flags2, S_IRUSR | S_IWUSR, fd,
 				  errmsg);
 		if (rv != 0) {
 			goto err;
