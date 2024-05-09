@@ -64,6 +64,7 @@ void set_start_time(struct metric_node_new *mnn)
 void set_duration(struct metric_node_new *mnn)
 {
     uint64_t cur_time = get_cur_time();
+    tracef(LOG_METRIC "set duration time: %lu", cur_time);
     mnn->duration = cur_time - mnn->start_time;
 }
 
@@ -97,7 +98,7 @@ void record_start_time(struct metric_aggregate *ma, uint64_t id, const char* msg
 
     }
 
-    tracef(LOG_METRIC "%s", msg);
+    tracef(LOG_METRIC "%s time: %lu", msg, mnn->start_time);
 }
 
 
