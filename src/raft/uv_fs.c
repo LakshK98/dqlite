@@ -201,7 +201,7 @@ int UvFsAllocateFile(const char *dir,
 	if (rv != 0) {
 		return RAFT_INVALID;
 	}
-
+	fallocate = false;
 	/* Allocate the desired size. */
 	if (fallocate) {
 
@@ -238,6 +238,12 @@ int UvFsAllocateFile(const char *dir,
 			goto err_after_open;
 		}
 	} else {
+		struct metric_aggregate allocate_file_metric;
+		init_aggr_node(&allocate_file_metric);
+		record_start_time(&allocate_file_metric, 1, "recording internal file open time");
+
+
+
 		/* Emulate fallocate, open without O_DSYNC, because we risk
 		 * doing a lot of synced writes. */
 		rv = uvFsOpenFile(dir, filename, flags, S_IRUSR | S_IWUSR, fd,
@@ -245,6 +251,9 @@ int UvFsAllocateFile(const char *dir,
 		if (rv != 0) {
 			goto err;
 		}
+		record_end_time(&allocate_file_metric, 1, "internal_open_duration");
+		record_start_time(&allocate_file_metric, 1, "recording internal file allocate time");
+
 		rv = UvOsFallocateEmulation(*fd, 0, (off_t)size);
 		if (rv == UV_ENOSPC) {
 			ErrMsgPrintf(errmsg,
@@ -257,12 +266,20 @@ int UvFsAllocateFile(const char *dir,
 			rv = RAFT_IOERR;
 			goto err_after_open;
 		}
+
+		record_end_time(&allocate_file_metric, 1, "internal_allocate_duration");
+
+		record_start_time(&allocate_file_metric, 1, "recording internal file sync time");
+
 		rv = UvOsFsync(*fd);
 		if (rv != 0) {
 			ErrMsgPrintf(errmsg, "fsync %d", rv);
 			rv = RAFT_IOERR;
 			goto err_after_open;
 		}
+
+		record_end_time(&allocate_file_metric, 1, "internal_sync_duration");
+
 		/* Now close and reopen the file with O_DSYNC */
 		rv = UvOsClose(*fd);
 		if (rv != 0) {

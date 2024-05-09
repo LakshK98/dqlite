@@ -6,6 +6,7 @@
 #include "uv_encoding.h"
 #include "uv_writer.h"
 #include "../metric_helper.h"
+#include "../tracing.h"
 
 
 /* The happy path for an append request is:
@@ -582,6 +583,7 @@ static struct uvAliveSegment *uvGetLastAliveSegment(struct uv *uv)
 static bool uvAliveSegmentHasEnoughSpareCapacity(struct uvAliveSegment *s,
 						 size_t size)
 {
+	tracef(LOG_METRIC "s->size: %lu size: %lu s->uv->segment_size: %lu",s->size, size, s->uv->segment_size);
 	return s->size + size <= s->uv->segment_size;
 }
 
@@ -603,6 +605,7 @@ static size_t uvAppendSize(struct uvAppend *a)
 	for (i = 0; i < a->n; i++) {       /* Entries data */
 		size += bytePad64(a->entries[i].buf.len);
 	}
+	tracef(LOG_METRIC "final append size: %lu", size);
 	return size;
 }
 
